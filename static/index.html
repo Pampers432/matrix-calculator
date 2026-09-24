@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Матричный калькулятор — пошаговые решения</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header>
+  <h1>Матричный калькулятор</h1>
+  <p>Детерминанты, обратная матрица, СЛАУ, миноры, ранг и арифметика матриц — с подробными пошаговыми вычислениями.</p>
+</header>
+
+<main>
+  <section id="controls">
+    <div class="card">
+      <label class="lbl" for="op">Выберите операцию</label>
+      <select id="op">
+        <optgroup label="Арифметика">
+          <option value="add">Сложение: A + B</option>
+          <option value="sub">Вычитание: A − B</option>
+          <option value="scalar">Умножение на число: k·A</option>
+          <option value="mul">Умножение матриц: A·B</option>
+          <option value="transpose">Транспонирование: Aᵀ</option>
+        </optgroup>
+        <optgroup label="Определители">
+          <option value="det">Определитель (разложение по строке/столбцу)</option>
+          <option value="detg">Определитель (метод Гаусса)</option>
+        </optgroup>
+        <optgroup label="Миноры и ранг">
+          <option value="minors">Миноры и алгебраические дополнения</option>
+          <option value="rank">Ранг матрицы</option>
+        </optgroup>
+        <optgroup label="Обратная матрица">
+          <option value="invadj">Обратная матрица (алгебраические дополнения)</option>
+          <option value="invgauss">Обратная матрица (метод Гаусса–Жордана)</option>
+        </optgroup>
+        <optgroup label="Системы линейных уравнений">
+          <option value="cramer">СЛАУ: метод Крамера</option>
+          <option value="gauss">СЛАУ: метод Гаусса</option>
+        </optgroup>
+      </select>
+
+      <div class="divider"></div>
+
+      <div class="sec" id="sec-A">
+        <div class="sec-head">Матрица A <span class="dim" id="dimA"></span></div>
+        <div class="sizerow">
+          <label>Строк <input type="number" id="rowsA" min="1" max="6" value="3"></label>
+          <label>Столбцов <input type="number" id="colsA" min="1" max="6" value="3"></label>
+        </div>
+        <div id="gridA" class="grid"></div>
+      </div>
+
+      <div class="sec hidden" id="sec-B">
+        <div class="sec-head">Матрица B <span class="dim" id="dimB"></span></div>
+        <div class="sizerow">
+          <label>Строк <input type="number" id="rowsB" min="1" max="6" value="3"></label>
+          <label>Столбцов <input type="number" id="colsB" min="1" max="6" value="3"></label>
+        </div>
+        <div id="gridB" class="grid"></div>
+      </div>
+
+      <div class="sec hidden" id="sec-k">
+        <label class="lbl">Число <b>k</b> = <input type="text" id="k" value="2" class="kinput"></label>
+      </div>
+
+      <div class="sec hidden" id="sec-expand">
+        <label class="lbl" for="expand">Раскладывать определитель по</label>
+        <select id="expand"></select>
+      </div>
+
+      <div class="sec hidden" id="sec-b">
+        <div class="sec-head">Столбец свободных членов b</div>
+        <div id="gridb" class="grid"></div>
+      </div>
+
+      <div class="actions">
+        <button id="solve" class="primary">Решить</button>
+        <button id="example">Заполнить пример</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="output">
+    <div id="solution" class="solution">
+      <div class="hint">Выберите операцию, заполните матрицы и нажмите «Решить». <br>Допустимые значения: целые числа, десятичные дроби (например 2.5) и обыкновенные дроби (например 3/4).</div>
+    </div>
+  </section>
+</main>
+
+<footer>Все вычисления выполняются над рациональными числами (дробями) — ответы точные, без погрешностей округления.</footer>
+<script src="/app.js"></script>
+</body>
+</html>
