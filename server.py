@@ -9,6 +9,7 @@ from solver.api import calc
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(ROOT, "static")
+MAX_REQUEST_SIZE = 2 * 1024 * 1024
 
 TYPES = {
     "html": "text/html; charset=utf-8",
@@ -66,6 +67,8 @@ class Handler(BaseHTTPRequestHandler):
             return
         try:
             length = int(self.headers.get("Content-Length", 0))
+            if length < 0 or length > MAX_REQUEST_SIZE:
+                raise ValueError("Размер запроса слишком велик.")
             raw = self.rfile.read(length)
             req = json.loads(raw.decode("utf-8"))
         except Exception as e:

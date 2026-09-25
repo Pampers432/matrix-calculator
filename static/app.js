@@ -16,16 +16,34 @@ const OPS = {
   invgauss: {},
   cramer:   { rhs: true },
   gauss:    { rhs: true },
+  matrixeq: { equation: true },
+  matrixsys: { system: true },
 };
 
 const opSel = $("op");
 const rowsA = $("rowsA"), colsA = $("colsA");
 const rowsB = $("rowsB"), colsB = $("colsB");
 const gridA = $("gridA"), gridB = $("gridB"), gridb = $("gridb");
+const matrixEquation = $("matrixEquation");
+const systemKnown = $("systemKnown"), systemUnknown = $("systemUnknown"), systemEquations = $("systemEquations");
 
 const EXAMPLE_A = [[1, 2, 3], [2, 1, 3], [3, 2, 1]];
 const EXAMPLE_B = [[1, 0, 2], [0, 1, 3], [2, 3, 1]];
 const EXAMPLE_b = [[6], [6], [6]];
+const EXAMPLE_MATRIX_EQUATION = "[[2,0],[0,3]]*X=[[2,4],[3,6]]";
+const EXAMPLE_SYSTEM = {
+  known: [
+    { name: "A", rows: 2, cols: 2, data: [[1, 0], [0, 1]] },
+    { name: "B", rows: 2, cols: 2, data: [[1, 0], [0, 1]] },
+    { name: "C", rows: 2, cols: 2, data: [[3, 1], [2, 4]] },
+    { name: "D", rows: 2, cols: 2, data: [[1, 0], [0, 1]] },
+  ],
+  unknowns: [
+    { name: "X", rows: 2, cols: 2 },
+    { name: "Y", rows: 2, cols: 2 },
+  ],
+  equations: "A*X + B*Y = C\nA*X - B*Y = D",
+};
 
 function buildGrid(container, rows, cols, data) {
   container.innerHTML = "";
@@ -62,6 +80,122 @@ function readGrid(container) {
 
 function readB() {
   return readGrid(gridb).map((r) => [r[0]]);
+}
+
+function zeroMatrix(rows, cols) {
+  return Array.from({ length: rows }, () => Array(cols).fill("0"));
+}
+
+function defaultSystem() {
+  return JSON.parse(JSON.stringify(EXAMPLE_SYSTEM));
+}
+
+function nextSystemName(items, prefix) {
+  for (let i = 0; i < 26; i++) {
+    const name = prefix + String.fromCharCode(65 + i);
+    if (!items.some((item) => item.name === name)) return name;
+  }
+  return prefix + String(items.length + 1);
+}
+
+function buildSystemMatrix(item, unknown, index) {
+  const wrap = div("system-matrix");
+  const head = div("system-matrix-head");
+  const name = document.createElement("input");
+  name.type = "text";
+  name.className = "system-name";
+  name.value = item.name;
+  name.autocomplete = "off";
+  name.spellcheck = false;
+  name.setAttribute("aria-label", unknown ? "Имя неизвестной матрицы" : "Имя известной матрицы");
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.className = "remove-system";
+  remove.textContent = "×";
+  remove.title = "Удалить матрицу";
+  remove.addEventListener("click", () => {
+    syncSystemState();
+    const target = unknown ? systemState.unknowns : systemState.known;
+    target.splice(index, 1);
+    renderSystemEditor();
+  });
+  head.appendChild(name);
+  head.appendChild(remove);
+  wrap.appendChild(head);
+  const size = div("sizerow");
+  const rows = document.createElement("input");
+  rows.type = "number";
+  rows.min = "1";
+  rows.max = "6";
+  rows.value = item.rows || 2;
+  rows.className = "system-rows";
+  const cols = document.createElement("input");
+  cols.type = "number";
+  cols.min = "1";
+  cols.max = "6";
+  cols.value = item.cols || 2;
+  cols.className = "system-cols";
+  const rowLabel = document.createElement("label");
+  rowLabel.appendChild(document.createTextNode("Строк "));
+  rowLabel.appendChild(rows);
+  const colLabel = document.createElement("label");
+  colLabel.appendChild(document.createTextNode("Столбцов "));
+  colLabel.appendChild(cols);
+  size.appendChild(rowLabel);
+  size.appendChild(colLabel);
+  wrap.appendChild(size);
+  if (!unknown) {
+    const grid = div("grid system-grid");
+    buildGrid(grid, Number(rows.value), Number(cols.value), item.data);
+    const resize = () => {
+      const oldData = readGrid(grid);
+      const newRows = sizeValidate(rows);
+      const newCols = sizeValidate(cols);
+      buildGrid(grid, newRows, newCols, oldData);
+    };
+    rows.addEventListener("change", resize);
+    cols.addEventListener("change", resize);
+    wrap.appendChild(grid);
+  }
+  return wrap;
+}
+
+function collectSystem() {
+  const known = Array.from(systemKnown.querySelectorAll(".system-matrix")).map((block) => {
+    const rows = sizeValidate(block.querySelector(".system-rows"));
+    const cols = sizeValidate(block.querySelector(".system-cols"));
+    return {
+      name: block.querySelector(".system-name").value.trim(),
+      rows,
+      cols,
+      data: readGrid(block.querySelector(".system-grid")),
+    };
+  });
+  const unknowns = Array.from(systemUnknown.querySelectorAll(".system-matrix")).map((block) => ({
+    name: block.querySelector(".system-name").value.trim(),
+    rows: sizeValidate(block.querySelector(".system-rows")),
+    cols: sizeValidate(block.querySelector(".system-cols")),
+  }));
+  return { known, unknowns, equations: systemEquations.value };
+}
+
+function syncSystemState() {
+  if (!systemRendered || !systemKnown || !systemUnknown || !systemEquations) return;
+  systemState = collectSystem();
+}
+
+function renderSystemEditor() {
+  if (!systemKnown || !systemUnknown || !systemEquations) return;
+  systemKnown.innerHTML = "";
+  systemState.known.forEach((item, index) => {
+    systemKnown.appendChild(buildSystemMatrix(item, false, index));
+  });
+  systemUnknown.innerHTML = "";
+  systemState.unknowns.forEach((item, index) => {
+    systemUnknown.appendChild(buildSystemMatrix(item, true, index));
+  });
+  systemEquations.value = systemState.equations || "";
+  systemRendered = true;
 }
 
 function sizeValidate(el) {
@@ -103,40 +237,58 @@ function updateExpandOptions() {
 
 function updateSections() {
   const meta = currentOpMeta();
-  $("sec-B").classList.toggle("hidden", !meta.b);
+  const system = !!meta.system;
+  const equation = !!meta.equation;
+  $("sec-A").classList.toggle("hidden", system || equation);
+  $("sec-B").classList.toggle("hidden", system || equation || !meta.b);
+  $("sec-matrixeq").classList.toggle("hidden", !equation);
   $("sec-k").classList.toggle("hidden", !meta.k);
   $("sec-expand").classList.toggle("hidden", !meta.expand);
   $("sec-b").classList.toggle("hidden", !meta.rhs);
+  $("sec-matrixsys").classList.toggle("hidden", !system);
+  $("matrixAName").textContent = "Матрица A";
+  $("matrixBName").textContent = "Матрица B";
   updateDims();
   if (meta.expand) updateExpandOptions();
 }
 
-function rebuild() {
-  const rA = sizeValidate(rowsA), cA = sizeValidate(colsA);
-  const rB = sizeValidate(rowsB), cB = sizeValidate(colsB);
-  buildGrid(gridA, rA, cA, currentA());
-  buildGrid(gridB, rB, cB, currentB());
-  buildGrid(gridb, rA, 1, currentBvec());
-  updateSections();
+let cache = { A: null, B: null, b: null };
+let systemState = defaultSystem();
+let systemRendered = false;
+
+function syncRegularState() {
+  if (gridA.querySelector("tr")) cache.A = readGrid(gridA);
+  if (gridB.querySelector("tr")) cache.B = readGrid(gridB);
+  if (gridb.querySelector("tr")) cache.b = readGrid(gridb);
 }
 
-let cache = { A: null, B: null, b: null };
-
-function rebuild() {
+function rebuild(saveCurrent = true) {
+  if (saveCurrent) syncRegularState();
+  if (currentOpMeta().system) syncSystemState();
   const rA = sizeValidate(rowsA), cA = sizeValidate(colsA);
   const rB = sizeValidate(rowsB), cB = sizeValidate(colsB);
   buildGrid(gridA, rA, cA, cache.A);
   buildGrid(gridB, rB, cB, cache.B);
   buildGrid(gridb, rA, 1, cache.b);
+  if (currentOpMeta().system) renderSystemEditor();
   updateSections();
 }
 
 function applyExample() {
+  if (currentOpMeta().equation) {
+    matrixEquation.value = EXAMPLE_MATRIX_EQUATION;
+    return;
+  }
+  if (currentOpMeta().system) {
+    systemState = defaultSystem();
+    renderSystemEditor();
+    return;
+  }
   rowsA.value = 3; colsA.value = 3; rowsB.value = 3; colsB.value = 3;
   cache.A = EXAMPLE_A;
   cache.B = EXAMPLE_B;
   cache.b = EXAMPLE_b;
-  rebuild();
+  rebuild(false);
 }
 
 function div(cls) {
@@ -301,7 +453,7 @@ function renderPure(box, steps) {
     if (s.t === "h" || s.t === "p") continue;
     if (s.t === "l") {
       const el = div("step-l");
-      const ltx = s.s.replace(/\\text\{[^{}]*\}/g, "").trim();
+      const ltx = s.ans ? s.s : s.s.replace(/\\text\{[^{}]*\}/g, "").trim();
       if (window.katex) katex.render(ltx, el, { displayMode: false, throwOnError: false });
       else el.textContent = ltx;
       box.appendChild(el);
@@ -337,16 +489,22 @@ function setMode(mode) {
 
 function solve() {
   const meta = currentOpMeta();
-  const A = readGrid(gridA);
-  const payload = { op: opSel.value, A: A, mode: currentMode };
-
-  if (meta.b) payload.B = readGrid(gridB);
-  if (meta.k) payload.k = $("k").value.trim() || "1";
-  if (meta.expand) {
-    payload.expand = { kind: $("expand").value[0] === "c" ? "col" : "row", idx: parseInt($("expand").value.slice(1), 10) - 1 };
-  }
-  if (meta.rhs) {
-    payload.b = readGrid(gridb).map((r) => [r[0]]);
+  const payload = { op: opSel.value, mode: currentMode };
+  if (meta.system) {
+    const system = collectSystem();
+    payload.known = system.known;
+    payload.unknowns = system.unknowns;
+    payload.equations = system.equations;
+  } else if (meta.equation) {
+    payload.equation = matrixEquation.value.trim();
+  } else {
+    payload.A = readGrid(gridA);
+    if (meta.b) payload.B = readGrid(gridB);
+    if (meta.k) payload.k = $("k").value.trim() || "1";
+    if (meta.expand) {
+      payload.expand = { kind: $("expand").value[0] === "c" ? "col" : "row", idx: parseInt($("expand").value.slice(1), 10) - 1 };
+    }
+    if (meta.rhs) payload.b = readGrid(gridb).map((r) => [r[0]]);
   }
 
   fetch("/api/calc", {
@@ -363,6 +521,24 @@ function solve() {
     .catch((err) => renderError(String(err)));
 }
 
+function addKnownMatrix() {
+  syncSystemState();
+  const rows = 2, cols = 2;
+  systemState.known.push({
+    name: nextSystemName(systemState.known, "A"),
+    rows,
+    cols,
+    data: zeroMatrix(rows, cols),
+  });
+  renderSystemEditor();
+}
+
+function addUnknownMatrix() {
+  syncSystemState();
+  systemState.unknowns.push({ name: nextSystemName(systemState.unknowns, "X"), rows: 2, cols: 2 });
+  renderSystemEditor();
+}
+
 opSel.addEventListener("change", () => rebuild());
 rowsA.addEventListener("change", () => rebuild());
 colsA.addEventListener("change", () => rebuild());
@@ -370,6 +546,8 @@ rowsB.addEventListener("change", () => rebuild());
 colsB.addEventListener("change", () => rebuild());
 $("solve").addEventListener("click", solve);
 $("example").addEventListener("click", applyExample);
+$("addKnown").addEventListener("click", addKnownMatrix);
+$("addUnknown").addEventListener("click", addUnknownMatrix);
 $("mode-normal").addEventListener("click", () => setMode("normal"));
 $("mode-latex").addEventListener("click", () => setMode("latex"));
 

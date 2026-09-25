@@ -87,6 +87,52 @@ select:focus, input:focus { outline: 2px solid rgba(37, 99, 235, .35); border-co
 
 .kinput { width: 90px !important; display: inline-block; text-align: center; }
 
+textarea {
+  width: 100%;
+  resize: vertical;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font: 14px/1.5 Consolas, "Courier New", monospace;
+  background: #fff;
+  color: var(--ink);
+}
+textarea:focus { outline: 2px solid rgba(37, 99, 235, .35); border-color: var(--accent); }
+.system-help { color: var(--muted); font-size: 12.5px; line-height: 1.45; margin: 4px 0 10px; }
+.system-help code { font-family: Consolas, "Courier New", monospace; color: var(--head-bg); }
+.system-list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  margin: 10px 0 6px;
+}
+.system-list { display: grid; gap: 8px; }
+.system-matrix {
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 8px;
+  background: #fafbfe;
+}
+.system-matrix-head { display: flex; gap: 6px; margin-bottom: 6px; }
+.system-name { flex: 1; min-width: 0; font-weight: 600; }
+.remove-system {
+  width: 30px;
+  padding: 6px 0;
+  border-radius: 7px;
+  background: #fee2e2;
+  color: var(--err);
+  font-size: 18px;
+  line-height: 1;
+}
+.system-matrix .sizerow { margin-bottom: 6px; }
+.system-matrix .sizerow input { width: 52px; }
+.system-grid { overflow-x: auto; }
+.small-button { padding: 6px 9px; border-radius: 7px; font-size: 12px; background: #e8eef8; color: var(--head-bg); }
+
 .actions { display: flex; gap: 10px; margin-top: 6px; }
 button {
   border: none;

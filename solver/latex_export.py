@@ -30,7 +30,10 @@ def _build_matrix(data):
 
 
 def _is_math(text):
-    return any(ch in text for ch in ("\\", "_", "{", "}", "^"))
+    value = str(text).strip()
+    return any(ch in value for ch in ("\\", "_", "{", "}", "^")) or bool(
+        re.fullmatch(r"[^\W\d_][\w]*", value, re.UNICODE)
+    )
 
 
 def _strip_text(line):
@@ -54,7 +57,10 @@ def build_latex(steps):
         if t in ("h", "p"):
             continue
         if t == "l":
-            doc.append("\\[" + _strip_text(s.get("s", "")) + "\\]")
+            line = s.get("s", "")
+            if not s.get("ans"):
+                line = _strip_text(line)
+            doc.append("\\[" + line + "\\]")
         elif t == "m":
             data = s.get("data") or []
             title = s.get("title")

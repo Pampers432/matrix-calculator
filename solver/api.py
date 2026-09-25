@@ -1,6 +1,7 @@
 from . import writer
 from .frac import parse_num
-from . import ops, det, minors, inverse, slae
+from .equation_parser import parse_matrix_equation
+from . import ops, det, minors, inverse, slae, matrix_equation
 from .latex_export import build_latex
 
 MAX_SIZE = 6
@@ -16,6 +17,8 @@ def parse_mat(data):
     for row in data:
         if not isinstance(row, list):
             row = [row]
+        if not row:
+            raise ValueError("Матрица не может содержать пустые строки.")
         M.append([parse_num(v) for v in row])
     if len(M) > MAX_SIZE or any(len(row) > MAX_SIZE for row in M):
         raise ValueError(f"Размер матриц ограничен {MAX_SIZE}×{MAX_SIZE}.")
@@ -71,6 +74,18 @@ def calc(req):
                     f"Матрицы несогласованы: число столбцов A ({len(A[0])}) "
                     f"не равно числу строк B ({len(B)}).")
             ops.mat_mul(A, B, w)
+        elif op in ("matrixeq", "matrix_equation"):
+            if req.get("equation") is not None:
+                equation = parse_matrix_equation(req.get("equation"))
+                A = parse_mat(equation["A"])
+                B = parse_mat(equation["B"])
+                matrix_equation.solve_axb(A, B, w, equation["unknown"])
+            else:
+                if A is None or B is None:
+                    raise ValueError("Введите матричное уравнение, например [[1,0],[0,1]]*X=[[2,0],[0,2]].")
+                matrix_equation.solve_axb(A, B, w)
+        elif op in ("matrixsys", "matrix_system"):
+            matrix_equation.solve_system(req, w)
         elif op == "transpose":
             if A is None:
                 raise ValueError("Нужна матрица A.")

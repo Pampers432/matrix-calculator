@@ -10,7 +10,7 @@
 <body>
 <header>
   <h1>Матричный калькулятор</h1>
-  <p>Детерминанты, обратная матрица, СЛАУ, миноры, ранг и арифметика матриц — с подробными пошаговыми вычислениями.</p>
+  <p>Детерминанты, обратная матрица, СЛАУ, матричные уравнения, миноры, ранг и арифметика матриц — с подробными пошаговыми вычислениями.</p>
 </header>
 
 <main>
@@ -37,16 +37,20 @@
           <option value="invadj">Обратная матрица (алгебраические дополнения)</option>
           <option value="invgauss">Обратная матрица (метод Гаусса–Жордана)</option>
         </optgroup>
-        <optgroup label="Системы линейных уравнений">
-          <option value="cramer">СЛАУ: метод Крамера</option>
-          <option value="gauss">СЛАУ: метод Гаусса</option>
-        </optgroup>
+         <optgroup label="Системы линейных уравнений">
+           <option value="cramer">СЛАУ: метод Крамера</option>
+           <option value="gauss">СЛАУ: метод Гаусса</option>
+         </optgroup>
+         <optgroup label="Матричные уравнения">
+           <option value="matrixeq">Матричное уравнение: ввод A·X = B</option>
+           <option value="matrixsys">Система матричных уравнений</option>
+         </optgroup>
       </select>
 
       <div class="divider"></div>
 
       <div class="sec" id="sec-A">
-        <div class="sec-head">Матрица A <span class="dim" id="dimA"></span></div>
+        <div class="sec-head"><span id="matrixAName">Матрица A</span> <span class="dim" id="dimA"></span></div>
         <div class="sizerow">
           <label>Строк <input type="number" id="rowsA" min="1" max="6" value="3"></label>
           <label>Столбцов <input type="number" id="colsA" min="1" max="6" value="3"></label>
@@ -55,12 +59,19 @@
       </div>
 
       <div class="sec hidden" id="sec-B">
-        <div class="sec-head">Матрица B <span class="dim" id="dimB"></span></div>
+        <div class="sec-head"><span id="matrixBName">Матрица B</span> <span class="dim" id="dimB"></span></div>
         <div class="sizerow">
           <label>Строк <input type="number" id="rowsB" min="1" max="6" value="3"></label>
           <label>Столбцов <input type="number" id="colsB" min="1" max="6" value="3"></label>
         </div>
         <div id="gridB" class="grid"></div>
+      </div>
+
+      <div class="sec hidden" id="sec-matrixeq">
+        <div class="sec-head">Матричное уравнение</div>
+        <label class="lbl" for="matrixEquation">Введите уравнение</label>
+        <textarea id="matrixEquation" rows="4" spellcheck="false">[[1,0],[0,1]]*X=[[2,0],[0,2]]</textarea>
+        <p class="system-help">Матрицы записываются прямо в уравнении: <code>[[1,0],[0,1]]*X=[[2,0],[0,2]]</code>. Поддерживаются дробные значения и скалярный коэффициент, например <code>2*[[1,0],[0,1]]*X=B</code>.</p>
       </div>
 
       <div class="sec hidden" id="sec-k">
@@ -75,6 +86,24 @@
       <div class="sec hidden" id="sec-b">
         <div class="sec-head">Столбец свободных членов b</div>
         <div id="gridb" class="grid"></div>
+      </div>
+
+      <div class="sec hidden" id="sec-matrixsys">
+        <div class="sec-head">Система матричных уравнений</div>
+         <p class="system-help">Задайте известные матрицы, размеры неизвестных и уравнения. В каждом уравнении используйте произведения вида <b>A*X</b>, <b>X*A</b>, скалярные коэффициенты и знаки <b>+/-</b>. Решение выводится методом алгебраического сложения: сначала сокращается Y и находится X, затем сокращается X и находится Y.</p>
+        <div class="system-list-head">
+          <span>Известные матрицы</span>
+          <button type="button" id="addKnown" class="small-button">+ матрица</button>
+        </div>
+        <div id="systemKnown" class="system-list"></div>
+        <div class="system-list-head">
+          <span>Неизвестные матрицы</span>
+          <button type="button" id="addUnknown" class="small-button">+ неизвестная</button>
+        </div>
+        <div id="systemUnknown" class="system-list"></div>
+        <label class="lbl" for="systemEquations">Уравнения (по одному в строке)</label>
+        <textarea id="systemEquations" rows="4" spellcheck="false"></textarea>
+        <p class="system-help">Правая часть каждой строки — имя известной матрицы. Например: <code>A*X + B*Y = C</code>.</p>
       </div>
 
       <div class="mode-switch" id="mode-switch">
@@ -92,7 +121,7 @@
 
   <section id="output">
     <div id="solution" class="solution">
-      <div class="hint">Выберите операцию, заполните матрицы и нажмите «Решить». <br>Допустимые значения: целые числа, десятичные дроби (например 2.5) и обыкновенные дроби (например 3/4).</div>
+       <div class="hint">Выберите операцию, заполните матрицы или введите уравнение и нажмите «Решить». <br>Допустимые значения: целые числа, десятичные дроби (например 2.5) и обыкновенные дроби (например 3/4). Матричное уравнение вводится в виде <code>[[1,0],[0,1]]*X=[[2,0],[0,2]]</code>.</div>
     </div>
   </section>
 </main>
