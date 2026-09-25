@@ -1,7 +1,10 @@
-from .frac import cell
+def _cell(v):
+    from .frac import latex
+
+    return latex(v)
 
 
-def rows_data(data):
+def _rows(data):
     out = []
     for row in data:
         r = []
@@ -9,7 +12,7 @@ def rows_data(data):
             if isinstance(v, dict) and v.get("sep"):
                 r.append({"sep": True})
             else:
-                r.append(cell(v))
+                r.append(_cell(v))
         out.append(r)
     return out
 
@@ -24,11 +27,14 @@ class W:
     def p(self, s, ans=False):
         self.steps.append({"t": "p", "s": s, "ans": ans})
 
+    def l(self, s, ans=False):
+        self.steps.append({"t": "l", "s": s, "ans": ans})
+
     def m(self, title, data, caption=None, ans=False):
         self.steps.append({
             "t": "m",
             "title": title,
-            "data": rows_data(data),
+            "data": _rows(data),
             "caption": caption,
             "ans": ans,
         })

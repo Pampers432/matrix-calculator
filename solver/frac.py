@@ -30,18 +30,18 @@ def numstr(f):
     return f"{f.numerator}/{f.denominator}"
 
 
-def cell(f):
+def latex(f):
     n, d = f.numerator, f.denominator
     if d == 1:
-        return f'<span class="val">{n}</span>'
-    return f'<span class="frac"><span class="num">{n}</span><span class="den">{d}</span></span>'
+        return str(n)
+    return f"\\frac{{{n}}}{{{d}}}"
 
 
-def join_terms(vals):
-    out = ""
+def ljoin(vals):
+    parts = []
     for i, v in enumerate(vals):
         if v >= 0:
-            out += ("" if i == 0 else " + ") + numstr(v)
+            parts.append((" + " if i else "") + latex(v))
         else:
-            out += ("" if i == 0 else " + ") + "(" + numstr(v) + ")"
-    return out if out else "0"
+            parts.append((" - " if i else "-") + latex(-v))
+    return "".join(parts) if parts else "0"

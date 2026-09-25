@@ -1,6 +1,6 @@
 from fractions import Fraction
 
-from .frac import numstr
+from .frac import latex
 from .matutil import submat, transpose
 from .det import det_minor
 
@@ -16,12 +16,12 @@ def minors_cofactors(M, w):
         for j in range(n):
             w.h(f"Минор M{i + 1}{j + 1}: вычёркиваем строку {i + 1} и столбец {j + 1}", 2)
             mn = submat(M, i, j)
-            w.m(f"M{i + 1}{j + 1}", mn)
-            dv = det_minor(mn, w, f"M{i + 1}{j + 1}")
+            w.m(f"M_{{{i + 1}{j + 1}}}", mn)
+            dv = det_minor(mn, w, f"M_{{{i + 1}{j + 1}}}")
             sgn = Fraction(1) if (i + j) % 2 == 0 else Fraction(-1)
             aij = sgn * dv
             row.append(aij)
-            w.p(f"A{i + 1}{j + 1} = (−1)^({i + 1}+{j + 1})·M{i + 1}{j + 1} = {numstr(sgn)}·{numstr(dv)} = {numstr(aij)}")
+            w.l(f"A_{{{i + 1}{j + 1}}} = (-1)^{{{i + 1 + j + 1}}} \\, M_{{{i + 1}{j + 1}}} = {latex(sgn)} \\cdot \\left({latex(dv)}\\right) = {latex(aij)}")
         cof.append(row)
 
     w.h("Матрица алгебраических дополнений C", 1)

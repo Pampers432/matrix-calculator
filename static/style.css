@@ -133,59 +133,26 @@ button.primary:hover { background: var(--accent-dark); }
 .step-h .num { color: var(--accent); margin-right: 6px; }
 
 .step-p { margin: 6px 0; }
-.step-p .ans-wrap { display: inline; }
 
+.step-l {
+  margin: 8px 0;
+  padding: 4px 2px;
+  overflow-x: auto;
+  font-size: 1.08em;
+}
+.step-l .katex-display { margin: 0; }
+.matrix-latex { overflow-x: auto; font-size: 1.05em; }
+.matrix-latex > .katex { overflow-x: auto; overflow-y: hidden; }
 .matrix-block {
   margin: 12px 0;
   padding: 12px 20px 14px;
   border: 1px dashed var(--line);
   border-radius: 12px;
   background: #fafbfe;
+  overflow-x: auto;
 }
 .matrix-block .mtitle { font-weight: 600; font-size: 14px; margin-bottom: 2px; }
 .matrix-block .mcap { color: var(--muted); font-size: 12.5px; margin-bottom: 6px; }
-
-.matrixbox { display: inline-block; }
-.matrix {
-  border-collapse: separate;
-  border-spacing: 0;
-  display: inline-table;
-}
-.matrix td {
-  padding: 3px 8px;
-  text-align: center;
-  font-family: Consolas, "Courier New", monospace;
-  font-size: 15px;
-  min-width: 26px;
-}
-.matrix td.sep {
-  font-weight: 700;
-  color: var(--muted);
-  padding: 3px 4px;
-  min-width: 8px;
-}
-
-.paren { position: relative; display: inline-block; padding: 8px 14px; }
-.paren::before, .paren::after {
-  content: "";
-  position: absolute;
-  top: 0; bottom: 0;
-  width: 9px;
-  border-top: 2px solid var(--ink);
-  border-bottom: 2px solid var(--ink);
-}
-.paren::before { left: 0; border-left: 2px solid var(--ink); border-radius: 8px 0 0 8px; }
-.paren::after { right: 0; border-right: 2px solid var(--ink); border-radius: 0 8px 8px 0; }
-
-/* fraction */
-.frac {
-  display: inline-block;
-  text-align: center;
-  vertical-align: middle;
-  font-family: Consolas, "Courier New", monospace;
-}
-.frac .num, .frac .den { display: block; padding: 0 4px; line-height: 1.25; }
-.frac .num { border-bottom: 1px solid var(--ink); }
 
 /* answer highlight */
 .ans {
@@ -213,4 +180,125 @@ footer {
   padding: 14px 28px 26px;
   color: var(--muted);
   font-size: 12.5px;
+}
+
+/* ---------- mode switch ---------- */
+.mode-switch {
+  display: flex;
+  gap: 6px;
+  background: #eef1f7;
+  border-radius: 10px;
+  padding: 4px;
+  margin-bottom: 12px;
+}
+.mode-switch .mode-btn {
+  flex: 1;
+  padding: 9px 0;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+}
+.mode-switch .mode-btn.active {
+  background: var(--card);
+  color: var(--accent);
+  box-shadow: 0 1px 4px rgba(16, 42, 84, .14);
+}
+.mode-note {
+  font-size: 13px;
+  color: var(--muted);
+  background: #f0f7ff;
+  border: 1px solid #cfe3ff;
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin: 0 0 14px;
+}
+
+/* ---------- latex output ---------- */
+.latex-page-note {
+  font-size: 14px;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
+.latex-bar {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.latex-bar button {
+  padding: 9px 16px;
+  font-size: 14px;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 8px;
+}
+.latex-bar button.secondary { background: #eef1f7; color: var(--ink); }
+
+.latex-code {
+  background: #0f172a;
+  color: #d6e2ff;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 12.5px;
+  line-height: 1.5;
+  padding: 16px;
+  border-radius: 12px;
+  overflow-x: auto;
+  white-space: pre;
+  max-height: 480px;
+  overflow-y: auto;
+  border: 1px solid #1e293b;
+}
+.latex-preview-title {
+  font-size: 18px;
+  margin: 24px 0 10px;
+  color: var(--head-bg);
+}
+.latex-preview {
+  border-top: 1px solid var(--line);
+  background: #fafbfe;
+  border-radius: 12px;
+  padding: 10px 18px;
+}
+.latex-preview .step-l,
+.latex-preview .matrix-latex {
+  display: block;
+  margin: 6px 0;
+  color: inherit;
+  font-weight: normal;
+}
+.latex-preview .matrix-line {
+  margin: 6px 0;
+}
+
+@page {
+  size: A4;
+  margin: 12mm;
+  margin-top: 10mm;
+}
+
+@media print {
+  header, #controls, footer, .latex-bar, .latex-code, .latex-page-note, .latex-preview-title {
+    display: none !important;
+  }
+  main { display: block; padding: 0; }
+  #output { max-width: 100%; }
+  body {
+    background: #fff;
+    color: #000;
+  }
+  .solution,
+  .latex-preview,
+  .step-l,
+  .matrix-latex,
+  .matrix-line,
+  .matrix-block {
+    background: none !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    max-height: none !important;
+  }
+  .hidden { display: none !important; }
 }

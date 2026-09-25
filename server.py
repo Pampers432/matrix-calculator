@@ -1,5 +1,7 @@
 import json
+import mimetypes
 import os
+import posixpath
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
 
@@ -8,16 +10,20 @@ from solver.api import calc
 ROOT = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(ROOT, "static")
 
-FILES = {
-    "/": "index.html",
-    "/index.html": "index.html",
-    "/style.css": "style.css",
-    "/app.js": "app.js",
-}
 TYPES = {
     "html": "text/html; charset=utf-8",
     "css": "text/css; charset=utf-8",
     "js": "application/javascript; charset=utf-8",
+    "json": "application/json; charset=utf-8",
+    "png": "image/png",
+    "jpg": "image/jpeg",
+    "jpeg": "image/jpeg",
+    "gif": "image/gif",
+    "svg": "image/svg+xml",
+    "ico": "image/x-icon",
+    "woff": "font/woff",
+    "woff2": "font/woff2",
+    "ttf": "font/ttf",
 }
 
 
@@ -33,18 +39,25 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         u = urlparse(self.path)
-        name = FILES.get(u.path)
-        if name is None:
+        rel = posixpath.normpath(u.path.lstrip("/")).replace("\\", "/")
+        if rel in ("", "."):
+            rel = "index.html"
+        if rel.startswith(".."):
             self._send(404, "text/plain; charset=utf-8", b"Not found")
             return
+        target = os.path.join(STATIC_DIR, rel.replace("/", os.sep))
+        if not os.path.isfile(target):
+            self._send(404, "text/plain; charset=utf-8", b"file not found")
+            return
         try:
-            with open(os.path.join(STATIC_DIR, name), "rb") as f:
+            with open(target, "rb") as f:
                 data = f.read()
         except OSError:
             self._send(404, "text/plain; charset=utf-8", b"file not found")
             return
-        ext = name.rsplit(".", 1)[-1]
-        self._send(200, TYPES.get(ext, "application/octet-stream"), data)
+        ext = rel.rsplit(".", 1)[-1].lower() if "." in rel else ""
+        ctype = TYPES.get(ext, mimetypes.guess_type(target)[0] or "application/octet-stream")
+        self._send(200, ctype, data)
 
     def do_POST(self):
         u = urlparse(self.path)

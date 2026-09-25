@@ -1,6 +1,7 @@
 from . import writer
 from .frac import parse_num
 from . import ops, det, minors, inverse, slae
+from .latex_export import build_latex
 
 MAX_SIZE = 6
 
@@ -121,4 +122,7 @@ def calc(req):
     steps = w.steps
     if not steps:
         steps = [{"t": "p", "s": "Ничего не вычислено."}]
-    return {"steps": steps}
+    resp = {"steps": steps}
+    if req.get("mode") == "latex":
+        resp["latex"] = build_latex(steps)
+    return resp

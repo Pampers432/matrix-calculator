@@ -1,6 +1,6 @@
 from fractions import Fraction
 
-from .frac import numstr
+from .frac import latex
 from .det import laplace
 
 
@@ -21,7 +21,7 @@ def cramer(A, b, w):
 
     w.h("Главный определитель системы Δ = det(A)", 2)
     D = laplace(A, w)
-    w.p(f"Δ = {numstr(D)}", ans=True)
+    w.l(f"\\Delta = {latex(D)}", ans=True)
     if D == 0:
         w.p("Δ = 0 — либо система несовместна, либо имеет бесконечно много решений. "
             "Метод Крамера неприменим, воспользуйтесь методом Гаусса.", ans=True)
@@ -33,12 +33,12 @@ def cramer(A, b, w):
         Di = [r[:] for r in A]
         for r in range(n):
             Di[r][i] = b[r]
-        w.m(f"Δ{i + 1}", Di)
-        d = laplace(Di, w, label=f"Δ{i + 1}", heading=False)
-        w.p(f"Δ{i + 1} = {numstr(d)}", ans=True)
+        w.m(f"\\Delta_{{{i + 1}}}", Di)
+        d = laplace(Di, w, label=f"\\Delta_{{{i + 1}}}", heading=False)
+        w.l(f"\\Delta_{{{i + 1}}} = {latex(d)}", ans=True)
         x = d / D
         xs.append(x)
-        w.p(f"x{i + 1} = Δ{i + 1}/Δ = {numstr(d)}/{numstr(D)} = {numstr(x)}", ans=True)
+        w.l(f"x_{{{i + 1}}} = \\dfrac{{\\Delta_{{{i + 1}}}}}{{\\Delta}} = \\dfrac{{{latex(d)}}}{{{latex(D)}}} = {latex(x)}", ans=True)
 
     w.h("Решение системы", 1)
     w.m("X", _b_col(xs), caption="Вектор неизвестных", ans=True)
@@ -70,14 +70,14 @@ def gauss(A, b, w):
             aug[piv], aug[cur] = aug[cur], aug[piv]
             w.p(f"Меняем местами строки {piv + 1} и {cur + 1}.")
             w.m("[A | b]", _a_row(aug))
-        w.p(f"Нормируем строку {cur + 1}: делим на ведущий элемент {numstr(aug[cur][c])}.")
+        w.p(f"Нормируем строку {cur + 1}: делим на ведущий элемент {latex(aug[cur][c])}.")
         aug[cur] = [v / aug[cur][c] for v in aug[cur]]
         w.m("[A | b]", _a_row(aug))
         for r in range(m):
             if r == cur or aug[r][c] == 0:
                 continue
             mm = aug[r][c]
-            w.p(f"R{r + 1} ← R{r + 1} − ({numstr(mm)})·R{cur + 1}")
+            w.l(f"R_{{{r + 1}}} \\leftarrow R_{{{r + 1}}} - \\left({latex(mm)}\\right) R_{{{cur + 1}}}")
             aug[r] = [aug[r][j] - mm * aug[cur][j] for j in range(nc + 1)]
             w.m("[A | b]", _a_row(aug))
         pivots.append(c)
@@ -85,8 +85,8 @@ def gauss(A, b, w):
 
     for r in range(cur, m):
         if all(aug[r][j] == 0 for j in range(nc)) and aug[r][nc] != 0:
-            w.p(f"Получена строка (0 0 … 0 | {numstr(aug[r][nc])}), т.е. 0 = {numstr(aug[r][nc])} — "
-                "система несовместна, решений нет.", ans=True)
+            w.l(f"0 = {latex(aug[r][nc])} \\quad \\text{{— противоречие}}")
+            w.p("Система несовместна — решений нет.", ans=True)
             return
 
     r = len(pivots)
@@ -98,34 +98,34 @@ def gauss(A, b, w):
         for i, c in enumerate(pivots):
             X[c] = aug[i][nc]
         for i in range(nc):
-            w.p(f"x{i + 1} = {numstr(X[i])}")
+            w.l(f"x_{{{i + 1}}} = {latex(X[i])}")
         w.m("X", _b_col(X), caption="Вектор неизвестных", ans=True)
         return
 
     free = [c for c in range(nc) if c not in pivots]
-    params = ["t1", "t2", "t3", "t4", "t5", "t6"]
+    params = ["t_1", "t_2", "t_3", "t_4", "t_5", "t_6"]
     names = {c: params[idx] for idx, c in enumerate(free)}
     w.p("Есть свободные переменные — система имеет бесконечно много решений. "
-        "Полагаем " + ", ".join(f"x{c + 1} = {names[c]}" for c in free) + ".")
+        "Полагаем " + ", ".join(f"x{c + 1} = t_{{{idx + 1}}}" for idx, c in enumerate(free)) + ".")
     sol = {}
     for i in reversed(range(len(pivots))):
         c = pivots[i]
         parts = []
         const = aug[i][nc]
         if const != 0:
-            parts.append(numstr(const))
+            parts.append(latex(const))
         for j in range(nc):
             if j == c or aug[i][j] == 0:
                 continue
             t = -aug[i][j]
             nm = names[j]
-            cs = nm if abs(t) == 1 else f"{numstr(abs(t))}·{nm}"
+            cs = nm if abs(t) == 1 else f"{latex(abs(t))}\\,{nm}"
             if not parts:
-                parts.append(cs if t > 0 else "−" + cs)
+                parts.append(cs if t > 0 else "-" + cs)
             else:
-                parts.append((" + " if t > 0 else " − ") + cs)
+                parts.append((" + " if t > 0 else " - ") + cs)
         sol[c] = "".join(parts) if parts else "0"
-        w.p(f"x{c + 1} = {sol[c]}")
+        w.l(f"x_{{{c + 1}}} = {sol[c]}")
 
     w.h("Решение (в параметрическом виде)", 1)
     rows = []

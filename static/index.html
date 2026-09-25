@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Матричный калькулятор — пошаговые решения</title>
+<link rel="stylesheet" href="/vendor/katex/katex.min.css">
 <link rel="stylesheet" href="/style.css">
 </head>
 <body>
@@ -76,6 +77,12 @@
         <div id="gridb" class="grid"></div>
       </div>
 
+      <div class="mode-switch" id="mode-switch">
+        <button class="mode-btn active" id="mode-normal" type="button">Обычный</button>
+        <button class="mode-btn" id="mode-latex" type="button">LaTeX</button>
+      </div>
+      <p class="mode-note hidden" id="mode-note">Решение будет выведено в виде LaTeX-кода (без объяснений) и показано для просмотра. Код можно скопировать и скомпилировать в любом LaTeX-редакторе или распечатать напрямую.</p>
+
       <div class="actions">
         <button id="solve" class="primary">Решить</button>
         <button id="example">Заполнить пример</button>
@@ -91,6 +98,7 @@
 </main>
 
 <footer>Все вычисления выполняются над рациональными числами (дробями) — ответы точные, без погрешностей округления.</footer>
+<script src="/vendor/katex/katex.min.js"></script>
 <script src="/app.js"></script>
 </body>
 </html>
