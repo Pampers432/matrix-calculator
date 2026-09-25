@@ -16,7 +16,7 @@ const OPS = {
   invgauss: {},
   cramer:   { rhs: true },
   gauss:    { rhs: true },
-  matrixeq: { equation: true },
+  matrixeq: { system: true, single: true },
   matrixsys: { system: true },
 };
 
@@ -24,13 +24,21 @@ const opSel = $("op");
 const rowsA = $("rowsA"), colsA = $("colsA");
 const rowsB = $("rowsB"), colsB = $("colsB");
 const gridA = $("gridA"), gridB = $("gridB"), gridb = $("gridb");
-const matrixEquation = $("matrixEquation");
 const systemKnown = $("systemKnown"), systemUnknown = $("systemUnknown"), systemEquations = $("systemEquations");
 
 const EXAMPLE_A = [[1, 2, 3], [2, 1, 3], [3, 2, 1]];
 const EXAMPLE_B = [[1, 0, 2], [0, 1, 3], [2, 3, 1]];
 const EXAMPLE_b = [[6], [6], [6]];
-const EXAMPLE_MATRIX_EQUATION = "[[2,0],[0,3]]*X=[[2,4],[3,6]]";
+const EXAMPLE_MATRIX_EQUATION = {
+  known: [
+    { name: "A", rows: 2, cols: 2, data: [[1, 1], [0, 1]] },
+    { name: "C", rows: 2, cols: 2, data: [[1, 0], [0, 2]] },
+  ],
+  unknowns: [
+    { name: "X", rows: 2, cols: 2 },
+  ],
+  equations: "5X + 3A - 2C^T = (2A - 3C)T",
+};
 const EXAMPLE_SYSTEM = {
   known: [
     { name: "A", rows: 2, cols: 2, data: [[1, 0], [0, 1]] },
@@ -238,14 +246,20 @@ function updateExpandOptions() {
 function updateSections() {
   const meta = currentOpMeta();
   const system = !!meta.system;
-  const equation = !!meta.equation;
-  $("sec-A").classList.toggle("hidden", system || equation);
-  $("sec-B").classList.toggle("hidden", system || equation || !meta.b);
-  $("sec-matrixeq").classList.toggle("hidden", !equation);
+  $("sec-A").classList.toggle("hidden", system);
+  $("sec-B").classList.toggle("hidden", system || !meta.b);
   $("sec-k").classList.toggle("hidden", !meta.k);
   $("sec-expand").classList.toggle("hidden", !meta.expand);
   $("sec-b").classList.toggle("hidden", !meta.rhs);
   $("sec-matrixsys").classList.toggle("hidden", !system);
+  $("matrixsysTitle").textContent = meta.single ? "Матричное уравнение" : "Система матричных уравнений";
+  $("matrixsysHelp").textContent = meta.single
+    ? "Задайте известные матрицы, размеры неизвестной и само уравнение. Например: 5X + 3A - 2C^T = (2A - 3C)T."
+    : "Задайте известные матрицы, размеры неизвестных и уравнения. В каждом уравнении используйте произведения вида A*X, X*A, скалярные коэффициенты и знаки +/-. Решение выводится методом алгебраического сложения: сначала сокращается Y и находится X, затем сокращается X и находится Y.";
+  $("systemEquationsLabel").textContent = meta.single ? "Уравнение" : "Уравнения (по одному в строке)";
+  $("systemEquationsHelp").textContent = meta.single
+    ? "Правая часть — выражение из известных матриц. Например: A*X = B или 5X + 3A = B."
+    : "Правая часть каждой строки — имя известной матрицы. Например: A*X + B*Y = C.";
   $("matrixAName").textContent = "Матрица A";
   $("matrixBName").textContent = "Матрица B";
   updateDims();
@@ -275,12 +289,10 @@ function rebuild(saveCurrent = true) {
 }
 
 function applyExample() {
-  if (currentOpMeta().equation) {
-    matrixEquation.value = EXAMPLE_MATRIX_EQUATION;
-    return;
-  }
   if (currentOpMeta().system) {
-    systemState = defaultSystem();
+    systemState = currentOpMeta().single
+      ? JSON.parse(JSON.stringify(EXAMPLE_MATRIX_EQUATION))
+      : defaultSystem();
     renderSystemEditor();
     return;
   }
@@ -495,8 +507,6 @@ function solve() {
     payload.known = system.known;
     payload.unknowns = system.unknowns;
     payload.equations = system.equations;
-  } else if (meta.equation) {
-    payload.equation = matrixEquation.value.trim();
   } else {
     payload.A = readGrid(gridA);
     if (meta.b) payload.B = readGrid(gridB);

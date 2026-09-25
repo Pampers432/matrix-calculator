@@ -1,7 +1,6 @@
-import re
 from fractions import Fraction
 
-from .equation_parser import is_identifier, parse_equations
+from .equation_parser import factor_text, is_identifier, name_latex, parse_equations
 from .frac import latex, parse_num
 from .matutil import transpose
 
@@ -127,6 +126,168 @@ def _infer_shape(shapes, name, rows, cols):
     )
 
 
+def _scale_matrix(matrix, scalar):
+    return [[scalar * value for value in row] for row in matrix]
+
+
+def _add_matrices(first, second):
+    return [
+        [first[row][col] + second[row][col] for col in range(len(first[0]))]
+        for row in range(len(first))
+    ]
+
+
+def _multiply_matrices(first, second):
+    return [
+        [
+            sum((first[row][k] * second[k][col] for k in range(len(second))), Fraction(0))
+            for col in range(len(second[0]))
+        ]
+        for row in range(len(first))
+    ]
+
+
+def _check_size(matrix, label):
+    if len(matrix) > MAX_MATRIX_SIZE or any(len(row) > MAX_MATRIX_SIZE for row in matrix):
+        raise ValueError(f"{label} имеет размер больше {MAX_MATRIX_SIZE}×{MAX_MATRIX_SIZE}.")
+    return matrix
+
+
+def _multiply_checked(first, second, label):
+    if len(first[0]) != len(second):
+        raise ValueError(
+            f"Несогласованы размеры матриц в {label}: число столбцов первой матрицы "
+            f"({len(first[0])}) не равно числу строк второй ({len(second)})."
+        )
+    return _multiply_matrices(first, second)
+
+
+def _combine_matrices(first, second, first_scale, second_scale):
+    return [
+        [first[row][col] * first_scale + second[row][col] * second_scale for col in range(len(first[0]))]
+        for row in range(len(first))
+    ]
+
+
+def _evaluate_factor(factor, known):
+    if factor["kind"] == "name":
+        name = factor["name"]
+        if name not in known:
+            raise ValueError(f"Матрица {name} не задана среди известных матриц.")
+        matrix = known[name]
+        return transpose(matrix) if factor["transposed"] else matrix
+    total = _evaluate_terms(
+        factor["terms"], known, "выражении в скобках", force_known=True
+    )
+    return transpose(total) if factor["transposed"] else total
+
+
+def _evaluate_terms(terms, known, label, force_known=False, apply_coefficient=True):
+    total = None
+    for term in terms:
+        product = None
+        for factor in term["factors"]:
+            if force_known and factor["kind"] == "name" and factor["name"] not in known:
+                raise ValueError(
+                    "В скобках можно использовать только известные матрицы, "
+                    f"а {factor['name']} — неизвестная."
+                )
+            value = _evaluate_factor(factor, known)
+            product = value if product is None else _multiply_checked(product, value, label)
+        if apply_coefficient and term["coefficient"] != 1:
+            product = _scale_matrix(product, term["coefficient"])
+        total = product if total is None else _add_matrices(total, product)
+        _check_size(total, label)
+    if total is None:
+        raise ValueError(f"{label} не содержит ни одного слагаемого.")
+    return total
+
+
+def _evaluate_rhs(terms, known):
+    return _evaluate_terms(terms, known, "правой части уравнения")
+
+
+def _register_known(factors, known, matrices):
+    if not factors:
+        return None
+    product = None
+    label = None
+    for factor in factors:
+        value = _evaluate_factor(factor, known)
+        text = factor_text(factor)
+        if product is None:
+            product = value
+            label = text
+        else:
+            product = _multiply_checked(product, value, "члене уравнения")
+            label = label + r"\cdot " + text
+    _check_size(product, "Член уравнения")
+    if label in matrices and _shape(matrices[label]) != _shape(product):
+        raise ValueError(f"Внутренняя ошибка: разные матрицы с обозначением {label}.")
+    matrices.setdefault(label, product)
+    return product, label
+
+
+def _prepare_term(raw, known, shapes, matrices, rhs_rows, rhs_cols):
+    factors = raw["factors"]
+    position = None
+    for index, factor in enumerate(factors):
+        if factor["kind"] == "name" and factor["name"] in shapes:
+            if position is not None:
+                raise ValueError("Произведение двух неизвестных матриц нелинейно и не поддерживается.")
+            position = index
+    label = r"\cdot ".join(factor_text(f) for f in factors)
+    if position is None:
+        matrix = _evaluate_terms(
+            [raw], known, "члене уравнения", apply_coefficient=False
+        )
+        matrices.setdefault(label, matrix)
+        return {
+            "coefficient": raw["coefficient"],
+            "unknown": None,
+            "left": None,
+            "right": None,
+            "matrix": matrix,
+            "label": label,
+            "key": ("constant", label),
+        }
+    unknown = factors[position]["name"]
+    if factors[position]["transposed"]:
+        raise ValueError(
+            f"Транспонирование неизвестной матрицы {unknown} не поддерживается. "
+            f"Введите вместо {unknown}^{{T}} отдельную неизвестную матрицу."
+        )
+    left = _register_known(factors[:position], known, matrices)
+    right = _register_known(factors[position + 1:], known, matrices)
+    rows = len(left[0]) if left is not None else rhs_rows
+    cols = len(right[0][0]) if right is not None else rhs_cols
+    unknown_rows = len(left[0][0]) if left is not None else rhs_rows
+    unknown_cols = len(right[0]) if right is not None else rhs_cols
+    _infer_shape(shapes, unknown, unknown_rows, unknown_cols)
+    if (rows, cols) != (rhs_rows, rhs_cols):
+        raise ValueError(
+            f"Размеры члена {raw['body']} ({rows}×{cols}) не совпадают "
+            f"с правой частью ({rhs_rows}×{rhs_cols})."
+        )
+    if left is not None and right is not None:
+        key = ("both", left[1], unknown, right[1])
+    elif left is not None:
+        key = ("left", left[1], unknown)
+    elif right is not None:
+        key = ("right", unknown, right[1])
+    else:
+        key = ("identity", unknown)
+    return {
+        "coefficient": raw["coefficient"],
+        "unknown": unknown,
+        "left": left[0] if left is not None else None,
+        "right": right[0] if right is not None else None,
+        "matrix": None,
+        "label": label,
+        "key": key,
+    }
+
+
 def _prepare_equations(equations, known, shapes):
     collisions = set(known) & set(shapes)
     if collisions:
@@ -134,76 +295,44 @@ def _prepare_equations(equations, known, shapes):
             "Имя не может одновременно обозначать известную и неизвестную матрицу: "
             + ", ".join(sorted(collisions))
         )
+    for equation in equations:
+        if equation["rhs"] is not None and equation["rhs"] not in known:
+            raise ValueError(f"Правая часть {equation['rhs']} должна быть известной матрицей.")
     names = list(shapes)
     for equation in equations:
-        if equation["rhs"] not in known:
-            raise ValueError(f"Правая часть {equation['rhs']} должна быть известной матрицей.")
         for term in equation["terms"]:
-            for name in (term["first"], term.get("second")):
-                if name is not None and name not in known and name not in shapes:
-                    shapes[name] = (None, None)
-                    names.append(name)
+            for factor in term["factors"]:
+                if factor["kind"] == "name" and factor["name"] not in known:
+                    name = factor["name"]
+                    if name not in shapes:
+                        shapes[name] = (None, None)
+                        names.append(name)
 
+    matrices = {}
     prepared = []
     for equation in equations:
-        rhs = known[equation["rhs"]]
+        rhs = _evaluate_rhs(equation["rhs_terms"], known)
         rhs_rows, rhs_cols = _shape(rhs)
-        terms = []
-        for raw in equation["terms"]:
-            first = raw["first"]
-            second = raw.get("second")
-            first_known = first in known
-            second_known = second in known if second is not None else False
-            first_unknown = first in shapes
-            second_unknown = second in shapes if second is not None else False
-            if first_known and second_known:
-                raise ValueError("Произведение двух известных матриц не входит в линейную систему.")
-            if first_unknown and second_unknown:
-                raise ValueError("Произведение двух неизвестных матриц нелинейно и не поддерживается.")
-            if first_known and second_unknown:
-                kind = "known_unknown"
-                matrix = known[first]
-                unknown = second
-                output_rows, output_cols = len(matrix), shapes[unknown][1] or rhs_cols
-                _infer_shape(shapes, unknown, len(matrix[0]), rhs_cols)
-            elif first_unknown and second_known:
-                kind = "unknown_known"
-                matrix = known[second]
-                unknown = first
-                output_rows, output_cols = shapes[unknown][0] or rhs_rows, len(matrix[0])
-                _infer_shape(shapes, unknown, rhs_rows, len(matrix))
-            elif first_unknown and second is None:
-                kind = "unknown"
-                unknown = first
-                _infer_shape(shapes, unknown, rhs_rows, rhs_cols)
-                output_rows, output_cols = shapes[unknown]
-            elif first_known and second is None:
-                kind = "known"
-                output_rows, output_cols = _shape(known[first])
-            else:
-                raise ValueError("Член уравнения должен иметь вид A·X, X·A, A или X.")
-            if (output_rows, output_cols) != (rhs_rows, rhs_cols):
-                raise ValueError(
-                    f"Размеры члена {first}"
-                    + (f"·{second}" if second else "")
-                    + f" ({output_rows}×{output_cols}) не совпадают с правой частью "
-                    + f"({rhs_rows}×{rhs_cols})."
-                )
-            terms.append({
-                "kind": kind,
-                "coefficient": raw["coefficient"],
-                "first": first,
-                "second": second,
-            })
-        prepared.append({"rhs": rhs, "rhs_name": equation["rhs"], "terms": terms})
+        terms = [
+            _prepare_term(raw, known, shapes, matrices, rhs_rows, rhs_cols)
+            for raw in equation["terms"]
+        ]
+        prepared.append({
+            "rhs": rhs,
+            "rhs_name": equation["rhs"],
+            "rhs_latex": equation["rhs_latex"],
+            "lhs_terms": equation["terms"],
+            "rhs_terms": equation["rhs_terms"],
+            "terms": terms,
+        })
 
     for name, shape in shapes.items():
         if shape[0] is None or shape[1] is None:
             raise ValueError(f"Не удалось определить размеры неизвестной матрицы {name}.")
-    return prepared, names
+    return prepared, names, matrices
 
 
-def _build_scalar_system(prepared, shapes, names, known):
+def _build_scalar_system(prepared, shapes, names):
     offsets = {}
     total = 0
     for name in names:
@@ -219,40 +348,35 @@ def _build_scalar_system(prepared, shapes, names, known):
         for r in range(rhs_rows):
             for c in range(rhs_cols):
                 row = [Fraction(0) for _ in range(total)]
-                constant = Fraction(0)
+                constant = None
                 for term in equation["terms"]:
                     coefficient = term["coefficient"]
-                    kind = term["kind"]
-                    if kind == "known_unknown":
-                        known_name = term["first"]
-                        unknown_name = term["second"]
-                        matrix = known[known_name]
-                        unknown_shape = shapes[unknown_name]
-                        offset = offsets[unknown_name]
-                        for k in range(unknown_shape[0]):
-                            index = offset + k * unknown_shape[1] + c
-                            row[index] += coefficient * matrix[r][k]
-                    elif kind == "unknown_known":
-                        known_name = term["second"]
-                        unknown_name = term["first"]
-                        matrix = known[known_name]
-                        unknown_shape = shapes[unknown_name]
-                        offset = offsets[unknown_name]
-                        for k in range(unknown_shape[1]):
-                            index = offset + r * unknown_shape[1] + k
-                            row[index] += coefficient * matrix[k][c]
-                    elif kind == "unknown":
-                        unknown_name = term["first"]
-                        unknown_shape = shapes[unknown_name]
-                        row[offsets[unknown_name] + r * unknown_shape[1] + c] += coefficient
-                    else:
-                        constant += coefficient * known[term["first"]][r][c]
+                    if term["unknown"] is None:
+                        value = _scale_matrix(term["matrix"], coefficient)
+                        constant = value if constant is None else _add_matrices(constant, value)
+                        continue
+                    name = term["unknown"]
+                    unknown_rows, unknown_cols = shapes[name]
+                    offset = offsets[name]
+                    left = term["left"]
+                    right = term["right"]
+                    rows_range = range(unknown_rows) if left is not None else (r,)
+                    cols_range = range(unknown_cols) if right is not None else (c,)
+                    for p in rows_range:
+                        for q in cols_range:
+                            weight = coefficient
+                            if left is not None:
+                                weight *= left[r][p]
+                            if right is not None:
+                                weight *= right[q][c]
+                            if weight:
+                                row[offset + p * unknown_cols + q] += weight
                 if len(rows) >= MAX_SCALAR_EQUATIONS:
                     raise ValueError(
                         f"Слишком много скалярных уравнений ({len(rows) + 1}). Максимум: {MAX_SCALAR_EQUATIONS}."
                     )
                 rows.append(row)
-                values.append(rhs[r][c] - constant)
+                values.append(rhs[r][c] - (constant[r][c] if constant is not None else Fraction(0)))
     return rows, values
 
 
@@ -463,60 +587,22 @@ def _rref_by_addition(C, D, w, title):
     return matrix, pivots, pivot_rows, free, consistent
 
 
-def _name_latex(name):
-    if re.fullmatch(r"[A-Za-z][A-Za-z0-9]*", name):
-        return name
-    escaped = name.replace("_", r"\_")
-    return r"\mathrm{" + escaped + "}"
-
-
-def _direct_term_key(term):
-    if term["kind"] == "known_unknown":
-        return ("left", term["first"], term["second"])
-    if term["kind"] == "unknown_known":
-        return ("right", term["first"], term["second"])
-    if term["kind"] == "unknown":
-        return ("identity", term["first"])
-    return ("constant", term["first"])
-
-
 def _canonical_terms(equation):
     result = {}
     for term in equation["terms"]:
-        key = _direct_term_key(term)
+        key = term["key"]
         result[key] = result.get(key, Fraction(0)) + term["coefficient"]
     return {key: value for key, value in result.items() if value != 0}
 
 
 def _unknown_name(key):
-    if key[0] == "left":
+    if key[0] in ("left", "both"):
         return key[2]
     if key[0] == "right":
         return key[1]
     if key[0] == "identity":
         return key[1]
     return None
-
-
-def _scale_matrix(matrix, scalar):
-    return [[scalar * value for value in row] for row in matrix]
-
-
-def _combine_matrices(first, second, first_scale, second_scale):
-    return [
-        [first[row][col] * first_scale + second[row][col] * second_scale for col in range(len(first[0]))]
-        for row in range(len(first))
-    ]
-
-
-def _multiply_matrices(first, second):
-    return [
-        [
-            sum((first[row][k] * second[k][col] for k in range(len(second))), Fraction(0))
-            for col in range(len(second[0]))
-        ]
-        for row in range(len(first))
-    ]
 
 
 def _is_scalar_identity(matrix):
@@ -562,16 +648,30 @@ def _invert_matrix_silently(matrix):
 
 def _direct_term_latex(key, coefficient):
     if key[0] == "left":
-        body = _name_latex(key[1]) + r"\cdot " + _name_latex(key[2])
+        body = key[1] + r"\cdot " + name_latex(key[2])
     elif key[0] == "right":
-        body = _name_latex(key[1]) + r"\cdot " + _name_latex(key[2])
-    elif key[0] == "identity":
-        body = _name_latex(key[1])
+        body = name_latex(key[1]) + r"\cdot " + key[2]
+    elif key[0] == "both":
+        body = key[1] + r"\cdot " + name_latex(key[2]) + r"\cdot " + key[3]
     else:
-        body = _name_latex(key[1])
+        body = name_latex(key[1])
     if abs(coefficient) != 1:
         body = latex(abs(coefficient)) + r"\," + body
     return ("-" if coefficient < 0 else "") + body
+
+
+def _coefficient_label(key, coefficient):
+    if key[0] in ("left", "both"):
+        label = key[1]
+    elif key[0] == "right":
+        label = key[2]
+    else:
+        label = name_latex(key[1])
+    if coefficient < 0:
+        label = r"\left(-" + label + r"\right)"
+    elif coefficient != 1:
+        label = latex(coefficient) + r"\," + label
+    return label
 
 
 def _matrix_latex(matrix):
@@ -579,48 +679,96 @@ def _matrix_latex(matrix):
     return r"\begin{pmatrix}" + r" \\ ".join(rows) + r"\end{pmatrix}"
 
 
-def _combination_latex(first, second, equations):
-    first_left = rf"\left({latex(first)}\right)\cdot\left({_equation_lhs_latex(equations[0])}\right)"
-    first_right = rf"\left({latex(first)}\right)\cdot {_equation_rhs_latex(equations[0])}"
-    second_left = rf"\left({latex(abs(second))}\right)\cdot\left({_equation_lhs_latex(equations[1])}\right)"
-    second_right = rf"\left({latex(abs(second))}\right)\cdot {_equation_rhs_latex(equations[1])}"
-    if second < 0:
-        return first_left + " - " + second_left + " = " + first_right + " - " + second_right
-    return first_left + " + " + second_left + " = " + first_right + " + " + second_right
-
-
-def _direct_term_solution(key, coefficient, rhs, known):
+def _direct_term_solution(key, coefficient, rhs, matrices):
     if coefficient == 0:
         return None
     if key[0] == "identity":
         return {
             "value": _scale_matrix(rhs, Fraction(1, 1) / coefficient),
-            "inverse": None,
             "matrix": None,
-        }
-    known_name = key[1] if key[0] == "left" else key[2]
-    coefficient_matrix = _scale_matrix(known[known_name], coefficient)
-    if key[0] == "right":
-        coefficient_matrix = transpose(coefficient_matrix)
-    if not coefficient_matrix or len(coefficient_matrix) != len(coefficient_matrix[0]):
-        return None
-    if _is_scalar_identity(coefficient_matrix):
-        return {
-            "value": _scale_matrix(rhs, Fraction(1, 1) / coefficient_matrix[0][0]),
             "inverse": None,
-            "matrix": coefficient_matrix,
+            "right_matrix": None,
+            "right_inverse": None,
+            "right_label": None,
         }
-    inverse = _invert_matrix_silently(coefficient_matrix)
-    if inverse is None:
-        return None
-    if key[0] == "left":
+    if key[0] in ("left", "both"):
+        left = matrices[key[1]]
+    else:
+        left = None
+    if key[0] == "right":
+        right = matrices[key[2]]
+    elif key[0] == "both":
+        right = matrices[key[3]]
+    else:
+        right = None
+    if left is not None:
+        left_matrix = _scale_matrix(left, coefficient)
+        if right is None and _is_scalar_identity(left_matrix):
+            return {
+                "value": _scale_matrix(rhs, Fraction(1, 1) / left_matrix[0][0]),
+                "matrix": None,
+                "inverse": None,
+                "right_matrix": None,
+                "right_inverse": None,
+                "right_label": None,
+            }
+        inverse = _invert_matrix_silently(left_matrix)
+        if inverse is None:
+            return None
         value = _multiply_matrices(inverse, rhs)
     else:
-        value = transpose(_multiply_matrices(inverse, transpose(rhs)))
-    return {"value": value, "inverse": inverse, "matrix": coefficient_matrix}
+        left_matrix = None
+        inverse = _invert_matrix_silently(_scale_matrix(right, coefficient))
+        if inverse is None:
+            return None
+        value = _multiply_matrices(rhs, inverse)
+    if key[0] == "both":
+        right_inverse = _invert_matrix_silently(right)
+        if right_inverse is None:
+            return None
+        value = _multiply_matrices(value, right_inverse)
+    else:
+        right_inverse = None
+    return {
+        "value": value,
+        "matrix": left_matrix,
+        "inverse": inverse,
+        "right_matrix": right if key[0] == "both" else None,
+        "right_inverse": right_inverse,
+        "right_label": (key[2] if key[0] == "right" else key[3]) if right is not None else None,
+    }
 
 
-def _direct_addition_plan(prepared, names, known):
+def _shift_constants(canonical, rhs, matrices):
+    for key, coefficient in canonical.items():
+        if key[0] == "constant":
+            rhs = _combine_matrices(rhs, matrices[key[1]], Fraction(1), -coefficient)
+    return rhs
+
+
+def _single_equation_plan(prepared, names, matrices):
+    if len(names) != 1:
+        return None
+    name = names[0]
+    canonical = _canonical_terms(prepared[0])
+    matches = [(key, value) for key, value in canonical.items() if _unknown_name(key) == name]
+    if len(matches) != 1:
+        return None
+    key, coefficient = matches[0]
+    rhs = _shift_constants(canonical, prepared[0]["rhs"], matrices)
+    solution = _direct_term_solution(key, coefficient, rhs, matrices)
+    if solution is None:
+        return None
+    return [{
+        "name": name,
+        "key": key,
+        "coefficient": coefficient,
+        "rhs": rhs,
+        "solution": solution,
+    }]
+
+
+def _direct_addition_plan(prepared, names, matrices):
     if len(prepared) != 2 or len(names) != 2:
         return None
     equations = [_canonical_terms(equation) for equation in prepared]
@@ -674,11 +822,9 @@ def _direct_addition_plan(prepared, names, known):
             first_multiplier,
             second_multiplier,
         )
-        for key, coefficient in combined.items():
-            if key[0] == "constant":
-                rhs = _combine_matrices(rhs, known[key[1]], Fraction(1), -coefficient)
+        rhs = _shift_constants(combined, rhs, matrices)
         coefficient = unknown_terms[0][1]
-        solution = _direct_term_solution(target_key, coefficient, rhs, known)
+        solution = _direct_term_solution(target_key, coefficient, rhs, matrices)
         if solution is None:
             return None
         plan.append({
@@ -692,6 +838,51 @@ def _direct_addition_plan(prepared, names, known):
             "solution": solution,
         })
     return plan
+
+
+def _direct_plan(prepared, names, matrices):
+    if len(prepared) == 1:
+        return _single_equation_plan(prepared, names, matrices)
+    return _direct_addition_plan(prepared, names, matrices)
+
+
+def _write_coefficient(item, w):
+    key = item["key"]
+    solution = item["solution"]
+    if solution["matrix"] is not None:
+        label = _coefficient_label(key, item["coefficient"])
+        w.m(label, solution["matrix"], caption="Матрица коэффициента при неизвестной")
+        w.m(label + r"^{-1}", solution["inverse"], caption="Обратная матрица коэффициента")
+    if solution["right_matrix"] is not None:
+        right_label = solution["right_label"]
+        w.m(right_label, solution["right_matrix"], caption="Матрица справа от неизвестной")
+        w.m(right_label + r"^{-1}", solution["right_inverse"], caption="Обратная матрица справа")
+    return _coefficient_label(key, item["coefficient"])
+
+
+def _write_single_equation(item, w):
+    name = name_latex(item["name"])
+    solution = item["solution"]
+    w.h(f"Находим {name}", 2)
+    w.p("Переносим известные слагаемые в правую часть уравнения.")
+    w.l(f"{_direct_term_latex(item['key'], item['coefficient'])} = {_matrix_latex(item['rhs'])}")
+    if solution["matrix"] is None and solution["right_matrix"] is None:
+        w.p(f"Сокращённое уравнение сразу даёт {name} = найденную матрицу.")
+    else:
+        label = _write_coefficient(item, w)
+        w.p(f"Умножаем на {label}^{{-1}} и получаем {name} = найденную матрицу.")
+    w.l(rf"\boxed{{{name} = {_matrix_latex(solution['value'])}}}", ans=True)
+    w.m(item["name"], solution["value"], caption=f"Матрица {item['name']}", ans=True)
+
+
+def _combination_latex(first, second, equations):
+    first_left = rf"\left({latex(first)}\right)\cdot\left({_equation_lhs_latex(equations[0])}\right)"
+    first_right = rf"\left({latex(first)}\right)\cdot {_equation_rhs_latex(equations[0])}"
+    second_left = rf"\left({latex(abs(second))}\right)\cdot\left({_equation_lhs_latex(equations[1])}\right)"
+    second_right = rf"\left({latex(abs(second))}\right)\cdot {_equation_rhs_latex(equations[1])}"
+    if second < 0:
+        return first_left + " - " + second_left + " = " + first_right + " - " + second_right
+    return first_left + " + " + second_left + " = " + first_right + " + " + second_right
 
 
 def _write_direct_addition(plan, equations, w):
@@ -713,36 +904,23 @@ def _write_direct_addition(plan, equations, w):
             f"{_matrix_latex(item['rhs'])}"
         )
         solution = item["solution"]
-        if solution["inverse"] is None:
+        if solution["matrix"] is None and solution["right_matrix"] is None:
             w.p(f"Сокращённое уравнение сразу даёт {target} = найденную матрицу.")
         else:
-            known_name = item["key"][1] if item["key"][0] == "left" else item["key"][2]
-            coefficient_title = _name_latex(known_name) + (r"^{T}" if item["key"][0] == "right" else "")
-            w.m(
-                "Коэффициент",
-                solution["matrix"],
-                caption=f"Матрица коэффициента для {coefficient_title}",
-            )
-            inverse_title = coefficient_title + r"^{-1}"
-            w.m(inverse_title, solution["inverse"], caption="Обратная матрица коэффициента")
-            w.p(f"Умножаем на {inverse_title} и получаем {target} = найденную матрицу.")
+            label = _write_coefficient(item, w)
+            w.p(f"Умножаем на {label}^{{-1}} и получаем {target} = найденную матрицу.")
         w.l(
-            rf"\boxed{{{target} = {_matrix_latex(solution['value'])}}}",
+            rf"\boxed{{{name_latex(target)} = {_matrix_latex(solution['value'])}}}",
             ans=True,
         )
         w.m(target, solution["value"], caption=f"Матрица {target}", ans=True)
 
 
-def _equation_lhs_latex(equation, scalar=None):
+def _expression_latex(terms, scalar=None):
     parts = []
-    for term in equation["terms"]:
+    for term in terms:
         coefficient = term["coefficient"] if scalar is None else term["coefficient"] * scalar
-        if term["kind"] == "known_unknown":
-            body = _name_latex(term["first"]) + r"\cdot " + _name_latex(term["second"])
-        elif term["kind"] == "unknown_known":
-            body = _name_latex(term["first"]) + r"\cdot " + _name_latex(term["second"])
-        else:
-            body = _name_latex(term["first"])
+        body = term["body"]
         if abs(coefficient) != 1:
             body = latex(abs(coefficient)) + r"\," + body
         if not parts:
@@ -752,13 +930,12 @@ def _equation_lhs_latex(equation, scalar=None):
     return "".join(parts) if parts else "0"
 
 
+def _equation_lhs_latex(equation, scalar=None):
+    return _expression_latex(equation["lhs_terms"], scalar)
+
+
 def _equation_rhs_latex(equation, scalar=None):
-    rhs = _name_latex(equation["rhs_name"])
-    if scalar is not None and abs(scalar) != 1:
-        rhs = latex(abs(scalar)) + r"\," + rhs
-        if scalar < 0:
-            rhs = "-" + rhs
-    return rhs
+    return _expression_latex(equation["rhs_terms"], scalar)
 
 
 def _equation_latex(equation):
@@ -776,7 +953,6 @@ def _scaled_equation_latex(equation, scalar):
 def _system_latex(equations):
     lines = [_equation_latex(equation) for equation in equations]
     return r"\left\{\begin{aligned}" + r" \\ ".join(lines) + r"\end{aligned}\right."
-
 
 
 def _parameter(index, group=None):
@@ -918,14 +1094,20 @@ def solve_axb(A, B, w, unknown_name="X"):
 def solve_system(req, w):
     known = _parse_known(req.get("known", req.get("matrices")))
     shapes = _parse_unknowns(req.get("unknowns"))
-    equations = parse_equations(req.get("equations"))
-    prepared, names = _prepare_equations(equations, known, shapes)
-    direct_plan = _direct_addition_plan(prepared, names, known)
-    w.h("Решение системы матричных уравнений", 1)
-    if direct_plan is None:
+    equations = parse_equations(req.get("equations"), set(known) | set(shapes))
+    prepared, names, matrices = _prepare_equations(equations, known, shapes)
+    single = len(prepared) == 1
+    plan = _direct_plan(prepared, names, matrices)
+    w.h("Решение матричного уравнения" if single else "Решение системы матричных уравнений", 1)
+    if plan is None:
         w.p(
             "Каждое уравнение разворачиваем по элементам: неизвестные матрицы "
             "становятся скалярными переменными, а коэффициенты образуют общую систему."
+        )
+    elif single:
+        w.p(
+            "Переносим известные слагаемые в правую часть и находим неизвестную матрицу "
+            "с помощью обратной матрицы коэффициента."
         )
     else:
         w.p(
@@ -938,13 +1120,13 @@ def solve_system(req, w):
         rows, cols = shapes[name]
         w.p(f"Неизвестная матрица {name}: {rows}×{cols}.")
     w.l(_system_latex(prepared))
-    if direct_plan is not None:
-        _write_direct_addition(direct_plan, prepared, w)
-        return {
-            item["name"]: item["solution"]["value"]
-            for item in direct_plan
-        }
-    coefficient_rows, values = _build_scalar_system(prepared, shapes, names, known)
+    if plan is not None:
+        if single:
+            _write_single_equation(plan[0], w)
+        else:
+            _write_direct_addition(plan, prepared, w)
+        return {item["name"]: item["solution"]["value"] for item in plan}
+    coefficient_rows, values = _build_scalar_system(prepared, shapes, names)
     C = coefficient_rows
     D = [[value] for value in values]
     w.h("Сведение к скалярной системе", 2)
@@ -962,23 +1144,24 @@ def solve_system(req, w):
         w.l(r"\boxed{\text{Система несовместна — решений нет}}", ans=True)
         return None
     layout = _layout_named(shapes, names)
+    result = {}
     if not free:
         values_flat = _unique_values(matrix, pivot_rows, len(layout), 1)[0]
-        offset = 0
         w.h("Решение", 1)
+        offset = 0
         for name in names:
             rows, cols = shapes[name]
             current = _matrix_from_values(values_flat, rows, cols, offset)
             w.m(name, current, caption=f"Матрица {name} ({rows}×{cols})", ans=True)
+            result[name] = current
             offset += rows * cols
-        return {name: _matrix_from_values(values_flat, shapes[name][0], shapes[name][1], sum(shapes[previous][0] * shapes[previous][1] for previous in names[:names.index(name)])) for name in names}
+        return result
     expressions_flat = _expressions(matrix, pivot_rows, free, len(layout), 1, layout, False)[0]
     w.p(
         "Есть свободные переменные — система имеет бесконечно много решений. "
         "Параметры t независимы для разных элементов неизвестных матриц."
     )
     w.h("Решение (в параметрическом виде)", 1)
-    result = {}
     offset = 0
     for name in names:
         rows, cols = shapes[name]

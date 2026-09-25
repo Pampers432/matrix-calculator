@@ -42,7 +42,7 @@
            <option value="gauss">СЛАУ: метод Гаусса</option>
          </optgroup>
          <optgroup label="Матричные уравнения">
-           <option value="matrixeq">Матричное уравнение: ввод A·X = B</option>
+            <option value="matrixeq">Матричное уравнение</option>
            <option value="matrixsys">Система матричных уравнений</option>
          </optgroup>
       </select>
@@ -67,13 +67,6 @@
         <div id="gridB" class="grid"></div>
       </div>
 
-      <div class="sec hidden" id="sec-matrixeq">
-        <div class="sec-head">Матричное уравнение</div>
-        <label class="lbl" for="matrixEquation">Введите уравнение</label>
-        <textarea id="matrixEquation" rows="4" spellcheck="false">[[1,0],[0,1]]*X=[[2,0],[0,2]]</textarea>
-        <p class="system-help">Матрицы записываются прямо в уравнении: <code>[[1,0],[0,1]]*X=[[2,0],[0,2]]</code>. Поддерживаются дробные значения и скалярный коэффициент, например <code>2*[[1,0],[0,1]]*X=B</code>.</p>
-      </div>
-
       <div class="sec hidden" id="sec-k">
         <label class="lbl">Число <b>k</b> = <input type="text" id="k" value="2" class="kinput"></label>
       </div>
@@ -89,8 +82,8 @@
       </div>
 
       <div class="sec hidden" id="sec-matrixsys">
-        <div class="sec-head">Система матричных уравнений</div>
-         <p class="system-help">Задайте известные матрицы, размеры неизвестных и уравнения. В каждом уравнении используйте произведения вида <b>A*X</b>, <b>X*A</b>, скалярные коэффициенты и знаки <b>+/-</b>. Решение выводится методом алгебраического сложения: сначала сокращается Y и находится X, затем сокращается X и находится Y.</p>
+        <div class="sec-head" id="matrixsysTitle">Система матричных уравнений</div>
+         <p class="system-help" id="matrixsysHelp">Задайте известные матрицы, размеры неизвестных и уравнения. В каждом уравнении используйте произведения вида <b>A*X</b>, <b>X*A</b>, скалярные коэффициенты и знаки <b>+/-</b>. Решение выводится методом алгебраического сложения: сначала сокращается Y и находится X, затем сокращается X и находится Y.</p>
         <div class="system-list-head">
           <span>Известные матрицы</span>
           <button type="button" id="addKnown" class="small-button">+ матрица</button>
@@ -101,9 +94,10 @@
           <button type="button" id="addUnknown" class="small-button">+ неизвестная</button>
         </div>
         <div id="systemUnknown" class="system-list"></div>
-        <label class="lbl" for="systemEquations">Уравнения (по одному в строке)</label>
+        <label class="lbl" for="systemEquations" id="systemEquationsLabel">Уравнения (по одному в строке)</label>
         <textarea id="systemEquations" rows="4" spellcheck="false"></textarea>
-        <p class="system-help">Правая часть каждой строки — имя известной матрицы. Например: <code>A*X + B*Y = C</code>.</p>
+        <p class="system-help" id="systemEquationsHelp">Правая часть каждой строки — имя известной матрицы. Например: <code>A*X + B*Y = C</code>.</p>
+        <p class="system-help">Транспонирование записывается как <code>AT</code>, <code>A^T</code> или <code>A'</code>, в том числе для скобок: <code>(2A - 3C)T</code>. Например: <code>5X + 3A - 2C^T = (2A - 3C)T</code>. Транспонировать неизвестную матрицу нельзя — введите вместо неё отдельную неизвестную.</p>
       </div>
 
       <div class="mode-switch" id="mode-switch">
@@ -121,7 +115,7 @@
 
   <section id="output">
     <div id="solution" class="solution">
-       <div class="hint">Выберите операцию, заполните матрицы или введите уравнение и нажмите «Решить». <br>Допустимые значения: целые числа, десятичные дроби (например 2.5) и обыкновенные дроби (например 3/4). Матричное уравнение вводится в виде <code>[[1,0],[0,1]]*X=[[2,0],[0,2]]</code>.</div>
+       <div class="hint">Выберите операцию, заполните матрицы или введите уравнение и нажмите «Решить». <br>Допустимые значения: целые числа, десятичные дроби (например 2.5) и обыкновенные дроби (например 3/4).</div>
     </div>
   </section>
 </main>

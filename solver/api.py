@@ -80,9 +80,13 @@ def calc(req):
                 A = parse_mat(equation["A"])
                 B = parse_mat(equation["B"])
                 matrix_equation.solve_axb(A, B, w, equation["unknown"])
+            elif req.get("equations") is not None or req.get("known") is not None:
+                matrix_equation.solve_system(req, w)
             else:
                 if A is None or B is None:
-                    raise ValueError("Введите матричное уравнение, например [[1,0],[0,1]]*X=[[2,0],[0,2]].")
+                    raise ValueError(
+                        "Задайте известные матрицы и введите уравнение, например A*X = B."
+                    )
                 matrix_equation.solve_axb(A, B, w)
         elif op in ("matrixsys", "matrix_system"):
             matrix_equation.solve_system(req, w)
